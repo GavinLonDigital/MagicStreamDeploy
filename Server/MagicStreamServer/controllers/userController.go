@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -95,16 +96,27 @@ func LoginUser(client *mongo.Client) gin.HandlerFunc {
 
 		var userCollection *mongo.Collection = database.OpenCollection("users", client)
 
+		// var foundUser models.User
+		// err := userCollection.FindOne(ctx, bson.D{{Key: "email", Value: userLogin.Email}}).Decode(&foundUser)
+		// if err != nil {
+		// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Here 1: Invalid email or password"})
+		// 	return
+		// }
 		var foundUser models.User
-		err := userCollection.FindOne(ctx, bson.D{{Key: "email", Value: userLogin.Email}}).Decode(&foundUser)
+		err := userCollection.FindOne(ctx, bson.M{"email": userLogin.Email}).Decode(&foundUser)
+
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
 		err = bcrypt.CompareHashAndPassword([]byte(foundUser.Password), []byte(userLogin.Password))
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Here 2: Invalid email or password"})
 			return
 		}
 
@@ -127,9 +139,10 @@ func LoginUser(client *mongo.Client) gin.HandlerFunc {
 			Path:  "/",
 			// Domain:   "localhost",
 			MaxAge:   86400,
-			Secure:   true,
+			Secure:   false, //must be set to false if http is useed and true if http sis sued
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			//SameSite: http.SameSiteNoneMode, // for https
+			SameSite: http.SameSiteLaxMode, // for http
 		})
 		http.SetCookie(c.Writer, &http.Cookie{
 			Name:  "refresh_token",
@@ -137,9 +150,10 @@ func LoginUser(client *mongo.Client) gin.HandlerFunc {
 			Path:  "/",
 			// Domain:   "localhost",
 			MaxAge:   604800,
-			Secure:   true,
+			Secure:   false, //must be set to false if http is useed and true if http sis sued
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			//SameSite: http.SameSiteNoneMode, // for https
+			SameSite: http.SameSiteLaxMode, // for http
 		})
 
 		c.JSON(http.StatusOK, models.UserResponse{
@@ -194,9 +208,10 @@ func LogoutHandler(client *mongo.Client) gin.HandlerFunc {
 			Path:  "/",
 			// Domain:   "localhost",
 			MaxAge:   -1,
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			//SameSite: http.SameSiteNoneMode, // for https
+			SameSite: http.SameSiteLaxMode, // for http
 		})
 
 		// // Clear the refresh_token cookie
@@ -214,9 +229,10 @@ func LogoutHandler(client *mongo.Client) gin.HandlerFunc {
 			Value:    "",
 			Path:     "/",
 			MaxAge:   -1,
-			Secure:   true,
+			Secure:   false,
 			HttpOnly: true,
-			SameSite: http.SameSiteNoneMode,
+			//SameSite: http.SameSiteNoneMode, // for https
+			SameSite: http.SameSiteLaxMode, // for http
 		})
 
 		c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
