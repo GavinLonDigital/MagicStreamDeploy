@@ -31,6 +31,7 @@ const Home =({updateMovieReview}) => {
 
     return (
         <>
+            <h2>Movies</h2>
             {loading ? (
                 <Spinner/>
             ):  (
